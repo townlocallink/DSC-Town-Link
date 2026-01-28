@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ShopProfile, ProductRequest, Offer, Order, DirectMessage, DailyUpdate } from '../types';
 import OfferForm from './OfferForm';
@@ -30,6 +29,12 @@ const ShopOwnerDashboard: React.FC<ShopOwnerDashboardProps> = ({
   const activeChatOffer = offers.find(o => o.id === activeChatOfferId);
   const myOffers = offers.filter(o => o.shopId === user.id);
   const myOrders = orders.filter(o => o.shopId === user.id);
+  
+  // LIVE SALES: Orders that have not been rated by the shop owner yet
+  const liveSales = myOrders.filter(o => !o.customerRated);
+  // HISTORICAL SALES: Orders already rated
+  const historicalSales = myOrders.filter(o => o.customerRated);
+
   const rejectedOffers = myOffers.filter(o => o.status === 'rejected');
   const activeOffers = myOffers.filter(o => o.status !== 'rejected');
 
@@ -64,6 +69,53 @@ const ShopOwnerDashboard: React.FC<ShopOwnerDashboardProps> = ({
         <button onClick={() => setShowUpdateModal(true)} className="bg-orange-500 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase shadow-xl shadow-orange-100 hover:bg-orange-600 transition">Broadcast Update</button>
       </header>
 
+      {/* LIVE SALES TRACKER - TOP OF PAGE */}
+      {liveSales.length > 0 && (
+        <section className="bg-green-600/5 p-8 rounded-[40px] border-2 border-green-100 shadow-lg shadow-green-50 animate-fade-in">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-[11px] font-black text-green-700 uppercase tracking-[0.2em] flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-600 rounded-full animate-ping"></span>
+              Live Sales Tracker ({liveSales.length})
+            </h3>
+            <span className="text-[10px] font-black text-green-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full border border-green-50 shadow-sm italic">Active Business</span>
+          </div>
+          <div className="space-y-4">
+            {liveSales.map(order => (
+              <div key={order.id} className="bg-white p-6 rounded-[32px] border border-green-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 shadow-sm hover:shadow-md transition">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <p className="font-black text-gray-900 text-lg">Order #{order.id.slice(0, 5).toUpperCase()}</p>
+                    <span className="bg-green-50 text-green-700 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-green-100">
+                      ₹{order.amountToCollect} to collect
+                    </span>
+                  </div>
+                  <p className="text-sm font-black text-green-600 mt-2 uppercase tracking-tighter italic">
+                    Status: {order.status.replace(/_/g, ' ')}
+                  </p>
+                  <div className="mt-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                    <span>📍 Destination:</span>
+                    <span className="text-gray-900 truncate max-w-xs">{order.deliveryAddress}</span>
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center gap-4">
+                  {order.deliveryPartnerName && (
+                    <div className="text-right hidden sm:block">
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Driver Assigned</p>
+                      <p className="text-[10px] font-black text-indigo-600">{order.deliveryPartnerName}</p>
+                    </div>
+                  )}
+                  {order.status === 'delivered' && !order.customerRated && (
+                     <button onClick={() => setRatingModal({orderId: order.id, customerId: order.customerId})} className="bg-yellow-400 text-black px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-yellow-100 hover:bg-yellow-500 transition active:scale-95">
+                        Rate Customer
+                     </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section>
         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6 px-2 flex justify-between items-center">
           <span>📡 Local Town Leads ({filteredRequests.length})</span>
@@ -93,20 +145,16 @@ const ShopOwnerDashboard: React.FC<ShopOwnerDashboardProps> = ({
       </section>
 
       <section>
-        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6 px-2">📦 Order Pipeline</h3>
+        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6 px-2">📜 Sales History</h3>
         <div className="space-y-4">
-          {myOrders.length === 0 ? <div className="p-10 text-center text-gray-300 bg-white rounded-[32px] border border-gray-100 font-black uppercase text-[10px] tracking-widest italic">No sales today yet</div> : 
-            myOrders.map(order => (
-              <div key={order.id} className="bg-white p-6 rounded-[32px] border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center shadow-sm gap-4">
+          {historicalSales.length === 0 ? <div className="p-10 text-center text-gray-300 bg-white rounded-[32px] border border-gray-100 font-black uppercase text-[10px] tracking-widest italic">No sales in history yet</div> : 
+            historicalSales.map(order => (
+              <div key={order.id} className="bg-white p-6 rounded-[32px] border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center shadow-sm gap-4 opacity-70">
                 <div className="flex-1">
                   <p className="font-black text-gray-900">Order #{order.id.slice(0, 4).toUpperCase()}</p>
-                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1 italic">Status: {order.status.replace(/_/g, ' ')}</p>
-                  {order.deliveryPartnerName && <p className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter mt-1">Driver: {order.deliveryPartnerName}</p>}
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1 italic">Delivered on {new Date(order.createdAt).toLocaleDateString()}</p>
                 </div>
-                {order.status === 'delivered' && !order.customerRated && (
-                   <button onClick={() => setRatingModal({orderId: order.id, customerId: order.customerId})} className="bg-yellow-400 text-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Rate Customer</button>
-                )}
-                <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'}`}>{order.status.replace(/_/g, ' ')}</span>
+                <span className="text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-green-100 text-green-700">Fulfilled</span>
               </div>
             ))
           }

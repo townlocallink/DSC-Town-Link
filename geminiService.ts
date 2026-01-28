@@ -28,15 +28,21 @@ Once they say "Yes", output ONLY this JSON: {"finalized": true, "summary": "Full
 `;
 
 export const getAgentResponseStream = async (history: ChatMessage[], onChunk: (text: string) => void) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout for town internet
+
   try {
     const response = await fetch('/api/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history })
+      body: JSON.stringify({ history }),
+      signal: controller.signal
     });
 
-    if (!response.ok) throw new Error('Network response was not ok');
-    if (!response.body) throw new Error('No readable stream in response');
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error('Sahayak server response error');
+    if (!response.body) throw new Error('Sahayak is silent right now');
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -48,8 +54,13 @@ export const getAgentResponseStream = async (history: ChatMessage[], onChunk: (t
       const chunk = decoder.decode(value, { stream: !done });
       if (chunk) onChunk(chunk);
     }
-  } catch (err) {
-    console.error("Streaming Fetch Error:", err);
+  } catch (err: any) {
+    console.error("Sahayak Stream Error:", err);
+    if (err.name === 'AbortError') {
+      onChunk("... (Connection slow hai, main yahi hoon, please ek bar message firse bhej dein)");
+    } else {
+      onChunk("... (Maaf kijiye, system mein thoda load hai. Please retry karein)");
+    }
     throw err;
   }
 };

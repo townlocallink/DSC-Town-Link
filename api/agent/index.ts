@@ -61,26 +61,26 @@ export default async function handler(req: Request) {
     const { history } = await req.json();
     const ai = new GoogleGenAI({ apiKey });
 
-    // Sanitize history for Gemini 3 strictly alternating roles
-    let contents = (history || []).map((m: any) => ({
-      role: m.role === 'model' ? 'model' : 'user',
-      parts: m.parts.map((p: any) => {
+    // Robust Turn Sequencing: Strictly alternate User and Model
+    let sequenced: any[] = [];
+    (history || []).forEach((m: any) => {
+      const role = m.role === 'model' ? 'model' : 'user';
+      const parts = (m.parts || []).map((p: any) => {
         if (p.text) return { text: p.text };
         if (p.inlineData) return { inlineData: p.inlineData };
         return null;
-      }).filter(Boolean)
-    }));
+      }).filter(Boolean);
 
-    const sequenced: any[] = [];
-    contents.forEach((msg: any) => {
+      if (parts.length === 0) return;
+
       if (sequenced.length === 0) {
-        if (msg.role === 'user') sequenced.push(msg);
+        if (role === 'user') sequenced.push({ role, parts });
       } else {
         const last = sequenced[sequenced.length - 1];
-        if (last.role !== msg.role) {
-          sequenced.push(msg);
+        if (last.role === role) {
+          last.parts = [...last.parts, ...parts];
         } else {
-          last.parts = [...last.parts, ...msg.parts];
+          sequenced.push({ role, parts });
         }
       }
     });
@@ -95,6 +95,8 @@ export default async function handler(req: Request) {
       config: { 
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
+        topP: 0.9,
+        topK: 40,
         safetySettings: [
           { category: "HARM_CATEGORY_HARASSMENT" as any, threshold: "BLOCK_NONE" as any },
           { category: "HARM_CATEGORY_HATE_SPEECH" as any, threshold: "BLOCK_NONE" as any },
@@ -116,7 +118,9 @@ export default async function handler(req: Request) {
           }
           controller.close();
         } catch (e) {
-          controller.error(e);
+          console.error("Stream error:", e);
+          controller.enqueue(encoder.encode("\n(Sahayak is currently slow. Please try again.)"));
+          controller.close();
         }
       }
     });
@@ -130,6 +134,6 @@ export default async function handler(req: Request) {
 
   } catch (err: any) {
     console.error("Edge Handler Error:", err);
-    return new Response(JSON.stringify({ text: "Namaste! System busy hai, thodi der baad koshish karein.", error: true }), { status: 200 });
+    return new Response(JSON.stringify({ text: "Namaste! Main thoda busy hoon, please ek baar phir try karein.", error: true }), { status: 200 });
   }
 }

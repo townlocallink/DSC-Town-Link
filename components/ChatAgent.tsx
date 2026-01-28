@@ -17,6 +17,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
   const [attachedImages, setAttachedImages] = useState<{id: string, data: string, mime: string}[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [errorState, setErrorState] = useState<string | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -27,6 +28,11 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
   }, [messages, isLoading, transcribing]);
 
+  const resetChat = () => {
+    setMessages([{ role: 'model', parts: [{ text: `Namaste ${user.name}! I'm LocalLink Sahayak. Aapko market se kya chahiye?` }] }]);
+    setErrorState(null);
+  };
+
   // Voice Recording Logic
   const startRecording = async () => {
     try {
@@ -35,7 +41,6 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
-      // Fix: Explicitly type the event as BlobEvent to access e.data
       mediaRecorder.ondataavailable = (e: BlobEvent) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
@@ -81,7 +86,6 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
 
   // Image Handling Logic
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Fix: Explicitly cast to File[] and type the file parameter to resolve 'unknown' errors
     const files = Array.from(e.target.files || []) as File[];
     files.forEach((file: File) => {
       const reader = new FileReader();
@@ -93,7 +97,6 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
           mime: file.type
         }]);
       };
-      // Fix: Using File object ensures compatibility with readAsDataURL
       reader.readAsDataURL(file);
     });
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -105,13 +108,14 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
 
   const handleSend = async () => {
     if (isLoading || (!input.trim() && attachedImages.length === 0)) return;
+    setErrorState(null);
 
     const parts: any[] = [];
     if (input.trim()) parts.push({ text: input.trim() });
     
     attachedImages.forEach((img, idx) => {
       parts.push({ 
-        text: `[REF_IMG_${idx}]` // Add a marker for the AI to refer to
+        text: `[REF_IMG_${idx}]` 
       });
       parts.push({
         inlineData: { mimeType: img.mime, data: img.data }
@@ -146,13 +150,11 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
 
       const finalizedData = parseAgentSummary(fullResponse);
       if (finalizedData?.finalized) {
-        // Find if a specific image was selected by the AI
         let selectedImageData = null;
         if (finalizedData.selectedImageId) {
           const matched = currentImages.find(img => img.id === finalizedData.selectedImageId);
           if (matched) selectedImageData = `data:${matched.mime};base64,${matched.data}`;
         } else if (currentImages.length > 0) {
-          // Default to first image if not specified but images were sent
           selectedImageData = `data:${currentImages[0].mime};base64,${currentImages[0].data}`;
         }
 
@@ -162,7 +164,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
           customerName: user.name,
           pinCode: user.pinCode,
           city: user.city,
-          locality: user.locality, // Robustness: Including locality
+          locality: user.locality,
           category: finalizedData.category || 'Other',
           description: finalizedData.summary || currentInput,
           status: 'broadcasted',
@@ -172,6 +174,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
       }
     } catch (err) {
       console.error(err);
+      setErrorState("Sahayak thoda busy hai. Reset karke try karein ya message firse bhejein.");
     } finally {
       setIsLoading(false);
     }
@@ -183,11 +186,14 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white text-indigo-600 shadow-lg text-2xl">🤖</div>
           <div>
-            <h3 className="font-bold text-lg leading-tight tracking-tight">Sahayak Assistant</h3>
-            <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Voice & Image Support Active</p>
+            <h3 className="font-bold text-lg leading-tight tracking-tight">Sahayak AI</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wider opacity-80 italic">Smooth Town Assistance</p>
           </div>
         </div>
-        <button onClick={onClose} className="hover:bg-black/10 p-2 rounded-full transition-colors">✕</button>
+        <div className="flex gap-2">
+           <button onClick={resetChat} title="Reset Chat" className="hover:bg-black/10 p-2 rounded-full transition-colors text-xs font-black uppercase tracking-widest opacity-70">Reset</button>
+           <button onClick={onClose} className="hover:bg-black/10 p-2 rounded-full transition-colors font-bold">✕</button>
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-5 bg-gray-50/30 no-scrollbar">
@@ -213,14 +219,23 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
             </div>
           </div>
         ))}
+        {errorState && (
+           <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-red-600 text-[10px] font-bold uppercase tracking-widest text-center mx-10 animate-fade-in">
+              {errorState}
+           </div>
+        )}
         {transcribing && (
            <div className="flex items-center gap-2 p-3 bg-white/80 rounded-2xl border border-indigo-100 self-start animate-pulse">
               <span className="text-xs">👂</span>
-              <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Sunte hain...</p>
+              <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Listening carefully...</p>
            </div>
         )}
         {isLoading && (
-          <div className="p-4 bg-white/50 border border-gray-50 rounded-2xl w-20 animate-pulse text-[10px] font-black uppercase tracking-widest text-indigo-400">Thinking...</div>
+          <div className="p-4 bg-white/50 border border-gray-50 rounded-2xl w-24 animate-pulse flex items-center justify-center gap-2">
+             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
+             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+          </div>
         )}
       </div>
 
@@ -273,7 +288,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ user, onClose, onFinalized }) => 
           </button>
         </div>
         {isRecording && (
-          <p className="text-center text-[8px] font-black uppercase text-red-500 tracking-[0.3em] mt-2">Recording Sahayak Audio...</p>
+          <p className="text-center text-[8px] font-black uppercase text-red-500 tracking-[0.3em] mt-2 italic">Recording Town Audio...</p>
         )}
       </div>
     </div>

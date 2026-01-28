@@ -30,6 +30,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const activeChatOffer = offers.find(o => o.id === activeChatOfferId);
   const myRequests = requests.filter(r => r.customerId === user.id);
   const myOrders = orders.filter(o => o.customerId === user.id);
+  
+  // LIVE ORDERS: Orders that have not been rated by the customer yet
+  const liveOrders = myOrders.filter(o => !o.shopRated);
+  // HISTORICAL ORDERS: Orders that have been rated
+  const historicalOrders = myOrders.filter(o => o.shopRated);
+
   const relevantOffers = offers.filter(o => {
     const isForMe = o.customerId === user.id;
     const isForMyRequest = myRequests.some(r => r.id === o.requestId);
@@ -51,7 +57,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       case 'assigned': return 'Arriving in 10 - 30 minutes';
       case 'collected': return 'Delivery partner is on the way';
       case 'delivered': return 'Delivered';
-      // Added type cast to string to prevent 'never' type error in exhaustive switch
       default: return (status as string).replace(/_/g, ' ');
     }
   };
@@ -71,6 +76,57 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           <span className="text-[9px] font-bold lowercase tracking-tight opacity-90 block mt-0.5">Order Here</span>
         </button>
       </header>
+
+      {/* LIVE ORDER TRACKER - TOP OF PAGE */}
+      {liveOrders.length > 0 && (
+        <section className="bg-indigo-600/5 p-8 rounded-[40px] border-2 border-indigo-100 shadow-lg shadow-indigo-50 animate-fade-in">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
+              <span className="w-2 h-2 bg-indigo-600 rounded-full animate-ping"></span>
+              Live Order Tracking ({liveOrders.length})
+            </h3>
+            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full border border-indigo-50 shadow-sm">Real-time Updates</span>
+          </div>
+          <div className="space-y-4">
+            {liveOrders.map(order => (
+              <div key={order.id} className="bg-white p-6 rounded-[32px] border border-indigo-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 shadow-sm hover:shadow-md transition">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <p className="font-black text-gray-900 text-lg">Order #{order.id.slice(0, 5).toUpperCase()}</p>
+                    <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
+                      {order.shopName}
+                    </span>
+                  </div>
+                  <p className="text-sm font-black text-indigo-600 mt-2 uppercase tracking-tighter italic">
+                    Status: {getStatusText(order.status)}
+                  </p>
+                  {order.deliveryPartnerName && (
+                    <div className="mt-3 flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 w-fit">
+                      <span className="text-sm">🛵</span>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase">
+                        {order.deliveryPartnerName} is delivering on a {order.deliveryPartnerVehicle}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="shrink-0">
+                  {order.status === 'delivered' && !order.shopRated && (
+                     <button onClick={() => setRatingModal({orderId: order.id, shopId: order.shopId})} className="bg-yellow-400 text-black px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-yellow-100 hover:bg-yellow-500 transition active:scale-95">
+                        Confirm & Rate Shop
+                     </button>
+                  )}
+                  {order.status !== 'delivered' && (
+                    <div className="flex flex-col items-center">
+                       <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                       <p className="text-[8px] font-black text-indigo-300 uppercase mt-2 tracking-widest">Tracking Live</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {updates.length > 0 && (
         <section>
@@ -130,25 +186,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       </div>
 
       <section className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">📜 Delivery History</h3>
+        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6 px-2">📜 Completed Deliveries</h3>
         <div className="space-y-4">
-          {myOrders.length === 0 ? <div className="p-12 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest italic">No orders yet</div> : 
-            myOrders.map(order => (
-              <div key={order.id} className="bg-gray-50/50 p-6 rounded-3xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {historicalOrders.length === 0 ? <div className="p-12 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest italic">No finished orders yet</div> : 
+            historicalOrders.map(order => (
+              <div key={order.id} className="bg-gray-50/50 p-6 rounded-3xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 opacity-70 grayscale-[0.3]">
                 <div>
                   <div className="flex items-center gap-3">
-                    <p className="font-black text-gray-900">Order #{order.id.slice(0, 5).toUpperCase()}</p>
-                    <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                      {getStatusText(order.status)}
+                    <p className="font-black text-gray-900 text-sm">Order #{order.id.slice(0, 5).toUpperCase()}</p>
+                    <span className="text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-green-100 text-green-700">
+                      Delivered
                     </span>
                   </div>
-                  {order.deliveryPartnerName && (
-                    <p className="text-[10px] font-bold text-indigo-600 mt-1 uppercase tracking-tighter italic">Partner: {order.deliveryPartnerName} ({order.deliveryPartnerVehicle})</p>
-                  )}
+                  <p className="text-[9px] font-bold text-gray-400 mt-1 uppercase tracking-tighter italic">Merchant: {order.shopName}</p>
                 </div>
-                {order.status === 'delivered' && !order.shopRated && (
-                   <button onClick={() => setRatingModal({orderId: order.id, shopId: order.shopId})} className="bg-yellow-400 text-black px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-100">Rate Shop</button>
-                )}
+                <div className="text-[10px] font-black text-gray-300 uppercase">Fulfilled</div>
               </div>
             ))
           }
