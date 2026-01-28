@@ -132,15 +132,6 @@ const App: React.FC = () => {
               o.createdAt > sessionStartTimeRef.current
             );
             newQuotes.forEach((o, idx) => setTimeout(() => addNotification(`New quote from ${o.shopName}!`, 'offer'), idx * 100));
-            
-            if (currentUser?.role === 'shop_owner') {
-              sorted.forEach((o: any) => {
-                const prevO = prev.find(p => p.id === o.id);
-                if (prevO && prevO.status !== 'rejected' && o.status === 'rejected' && o.shopId === currentUser.id) {
-                   addNotification(`Update: Customer chose another shop for their request.`, 'system');
-                }
-              });
-            }
           }
           return sorted;
         });
@@ -206,19 +197,25 @@ const App: React.FC = () => {
 
   const handleAcceptOffer = async (order: Order) => {
     const allUsersList = await dbService.loadUsers();
+    const acceptedOffer = offers.find(o => o.id === order.offerId);
+    
     const shop = allUsersList.find(u => u.id === order.shopId);
     const customer = allUsersList.find(u => u.id === order.customerId);
     const req = requests.find(r => r.id === order.requestId);
 
+    const isTownHub = acceptedOffer?.shopId === 'town_hub_admin';
+
     const enrichedOrder: Order = {
       ...order,
-      shopPhone: shop?.phoneNumber,
-      shopAddress: shop?.address,
+      shopPhone: isTownHub ? 'Pending Dispatch' : shop?.phoneNumber,
+      shopAddress: isTownHub ? 'Pending Dispatch' : shop?.address,
       customerPhone: customer?.phoneNumber,
       customerName: customer?.name,
       category: req?.category,
       itemDescription: req?.description,
-      status: 'pending_assignment'
+      status: 'pending_assignment',
+      isTownHubOrder: isTownHub,
+      townHubPickupFinalized: false
     };
 
     setOrders(prev => [enrichedOrder, ...prev]);
@@ -226,11 +223,9 @@ const App: React.FC = () => {
 
     const competingOffers = offers.filter(o => o.requestId === order.requestId && o.id !== order.offerId);
     for (const compOffer of competingOffers) {
-      const rejectedOffer = { ...compOffer, status: 'rejected' as const };
-      await dbService.saveItem(compOffer.id, 'offer', rejectedOffer);
+      await dbService.saveItem(compOffer.id, 'offer', { ...compOffer, status: 'rejected' as const });
     }
 
-    const acceptedOffer = offers.find(o => o.id === order.offerId);
     if (acceptedOffer) await dbService.saveItem(acceptedOffer.id, 'offer', { ...acceptedOffer, status: 'accepted' as const });
 
     const targetRequest = requests.find(r => r.id === order.requestId);
@@ -247,6 +242,11 @@ const App: React.FC = () => {
     
     if (!currentOrder || currentOrder.status !== 'pending_assignment') {
       alert("Oops! This delivery job was already taken by someone else.");
+      return;
+    }
+
+    if (currentOrder.isTownHubOrder && !currentOrder.townHubPickupFinalized) {
+      alert("Please wait. Town Hub is currently finalizing the pickup location for this rescued lead.");
       return;
     }
 

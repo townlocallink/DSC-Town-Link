@@ -104,6 +104,8 @@ export interface Order {
   customerRated: boolean;
   shopRated: boolean;
   createdAt: number;
+  isTownHubOrder?: boolean;
+  townHubPickupFinalized?: boolean;
 }
 
 export interface ChatMessage {
