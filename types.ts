@@ -55,6 +55,7 @@ export interface DirectMessage {
   senderId: string;
   text: string;
   timestamp: number;
+  image?: string; // Base64 or DataURL of attached image
 }
 
 export interface GroundingChunk {

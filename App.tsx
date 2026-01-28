@@ -107,19 +107,6 @@ const App: React.FC = () => {
 
         setRequests(prev => {
           const sorted = (data.requests || []).sort((a: any, b: any) => b.createdAt - a.createdAt);
-          if (isReady && currentUser?.role === 'shop_owner') {
-            const myShop = currentUser as ShopProfile;
-            const newLeads = sorted.filter((r: any) => 
-              !prev.find(p => p.id === r.id) && 
-              r.createdAt > sessionStartTimeRef.current &&
-              r.status === 'broadcasted'
-            );
-            newLeads.forEach((r: any, idx) => {
-              if (r.city === myShop.city && (r.category === myShop.category || r.category === 'Other')) {
-                setTimeout(() => addNotification(`Town Broadcast: New lead for ${r.category}!`, 'lead'), idx * 100);
-              }
-            });
-          }
           return sorted;
         });
 
@@ -132,6 +119,20 @@ const App: React.FC = () => {
               o.createdAt > sessionStartTimeRef.current
             );
             newQuotes.forEach((o, idx) => setTimeout(() => addNotification(`New quote from ${o.shopName}!`, 'offer'), idx * 100));
+            
+            // Check for new chat messages
+            if (currentUser) {
+              sorted.forEach((o: any) => {
+                const prevO = prev.find(p => p.id === o.id);
+                if (prevO && (o.chatHistory?.length || 0) > (prevO.chatHistory?.length || 0)) {
+                   const lastMsg = o.chatHistory[o.chatHistory.length - 1];
+                   if (lastMsg.senderId !== currentUser.id) {
+                      const senderName = o.shopId === currentUser.id ? 'Customer' : o.shopName;
+                      addNotification(`New message from ${senderName}: ${lastMsg.text || '📷 Attachment'}`, 'chat');
+                   }
+                }
+              });
+            }
           }
           return sorted;
         });
