@@ -19,9 +19,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [pinCode, setPinCode] = useState('');
   const [city, setCity] = useState('');
   const [locality, setLocality] = useState('');
+  const [address, setAddress] = useState(''); // Added address state
   const [shopName, setShopName] = useState('');
   const [category, setCategory] = useState('');
-  const [otherCategory, setOtherCategory] = useState('');
   const [vehicleType, setVehicleType] = useState('Two-wheeler');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -48,9 +48,20 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         if (password !== confirmPassword) { setError('Passwords do not match.'); setIsLoading(false); return; }
         if (allUsers.some((u: any) => u.phoneNumber.replace(/\D/g, '') === normalizedPhone)) { setError('Number already exists.'); setIsLoading(false); return; }
         if (!role || !pinCode || !city) { setError('Fill essential fields.'); setIsLoading(false); return; }
+        if (role === 'shop_owner' && !address.trim()) { setError('Shop address is required for deliveries.'); setIsLoading(false); return; }
 
         let newUser: UserProfile | ShopProfile;
-        const commonData = { name: name.trim(), phoneNumber: normalizedPhone, password, pinCode: pinCode.trim(), city: city.trim(), locality: locality.trim(), rating: role === 'delivery_partner' ? 4.8 : 5.0, totalRatings: 0 };
+        const commonData = { 
+          name: name.trim(), 
+          phoneNumber: normalizedPhone, 
+          password, 
+          pinCode: pinCode.trim(), 
+          city: city.trim(), 
+          locality: locality.trim(), 
+          address: address.trim(), // Include address in profile
+          rating: role === 'delivery_partner' ? 4.8 : 5.0, 
+          totalRatings: 0 
+        };
 
         if (role === 'customer') newUser = { id: 'cust_' + Math.random().toString(36).substr(2, 9), role: 'customer', ...commonData } as UserProfile;
         else if (role === 'shop_owner') newUser = { id: 'shop_' + Math.random().toString(36).substr(2, 9), role: 'shop_owner', ...commonData, shopName: shopName.trim() || name.trim(), category: category || 'Other' } as ShopProfile;
@@ -77,7 +88,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <div className="text-left"><span className="text-xs font-black text-purple-600 uppercase tracking-widest">I want to sell</span><p className="text-lg font-bold text-gray-900">Shop Owner</p></div>
               <span className="text-4xl group-hover:scale-110 transition">🏪</span>
             </button>
-            
             <div className="pt-4 border-t border-gray-100">
               <button onClick={() => setRole('delivery_partner')} className="flex items-center gap-2 mx-auto px-4 py-2 rounded-xl hover:bg-gray-100 transition group">
                 <span className="text-xl">🛵</span>
@@ -113,6 +123,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <input required className="w-full p-4 bg-gray-50 border-transparent border-2 focus:border-indigo-600 rounded-2xl outline-none" value={city} onChange={e => setCity(e.target.value)} placeholder="City *" />
               </div>
               <input className="w-full p-4 bg-gray-50 border-transparent border-2 focus:border-indigo-600 rounded-2xl outline-none" value={locality} onChange={e => setLocality(e.target.value)} placeholder="Locality *" required />
+              {role === 'shop_owner' && (
+                <input required className="w-full p-4 bg-gray-50 border-transparent border-2 focus:border-indigo-600 rounded-2xl outline-none" value={address} onChange={e => setAddress(e.target.value)} placeholder="Full Shop Address (for pickup) *" />
+              )}
             </>
           )}
           {!isLogin && role === 'shop_owner' && (

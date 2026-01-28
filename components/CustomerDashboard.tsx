@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserProfile, ProductRequest, Offer, Order, DirectMessage, DailyUpdate } from '../types';
 import ChatAgent from './ChatAgent';
@@ -43,6 +42,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       onSubmitRating(ratingModal.shopId, tempRating, ratingModal.orderId, 'shop');
       setRatingModal(null);
       setTempRating(0);
+    }
+  };
+
+  const getStatusText = (status: Order['status']) => {
+    switch (status) {
+      case 'pending_assignment': return 'Arriving in 10 mins - 2 hours';
+      case 'assigned': return 'Arriving in 10 - 30 minutes';
+      case 'collected': return 'Delivery partner is on the way';
+      case 'delivered': return 'Delivered';
+      // Added type cast to string to prevent 'never' type error in exhaustive switch
+      default: return (status as string).replace(/_/g, ' ');
     }
   };
 
@@ -129,7 +139,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <div className="flex items-center gap-3">
                     <p className="font-black text-gray-900">Order #{order.id.slice(0, 5).toUpperCase()}</p>
                     <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                      {order.status.replace(/_/g, ' ')}
+                      {getStatusText(order.status)}
                     </span>
                   </div>
                   {order.deliveryPartnerName && (

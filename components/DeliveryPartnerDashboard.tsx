@@ -48,20 +48,25 @@ const DeliveryPartnerDashboard: React.FC<DeliveryPartnerDashboardProps> = ({
                   <p className="text-lg font-black text-indigo-600">Collect: ₹{job.amountToCollect}</p>
                 </div>
                 
-                <div className="space-y-3 mb-6">
+                <div className="space-y-4 mb-6">
                    <div className="flex gap-2">
                      <span className="text-lg">🏪</span>
                      <div>
-                       <p className="text-[8px] font-black text-gray-400 uppercase">Shop</p>
+                       <p className="text-[8px] font-black text-gray-400 uppercase">Pickup From Shop</p>
                        <p className="text-xs font-bold text-gray-800">{job.shopName}</p>
+                       <p className="text-[9px] text-gray-500 italic mt-0.5">{job.shopAddress || "Address in profile"}</p>
                      </div>
                    </div>
                    <div className="flex gap-2">
                      <span className="text-lg">📍</span>
                      <div>
-                       <p className="text-[8px] font-black text-gray-400 uppercase">Customer Address</p>
-                       <p className="text-xs font-bold text-gray-800">{job.deliveryAddress}</p>
+                       <p className="text-[8px] font-black text-gray-400 uppercase">Deliver To Customer</p>
+                       <p className="text-xs font-bold text-gray-800">{job.customerName || "Resident"}</p>
+                       <p className="text-[9px] text-gray-500 italic mt-0.5">{job.deliveryAddress}</p>
                      </div>
+                   </div>
+                   <div className="bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200">
+                      <p className="text-[8px] font-black text-amber-600 uppercase text-center">Contact details revealed after acceptance</p>
                    </div>
                 </div>
 
@@ -95,13 +100,19 @@ const DeliveryPartnerDashboard: React.FC<DeliveryPartnerDashboardProps> = ({
                       <p className="text-[8px] font-black text-gray-400 uppercase mb-2">Step 1: Pickup from Shop</p>
                       <p className="text-xs font-black text-gray-800 mb-1">{job.shopName}</p>
                       <p className="text-[10px] font-bold text-gray-500 mb-2">{job.shopAddress || "Address loading..."}</p>
-                      <a href={`tel:${job.shopPhone}`} className="text-xs font-black text-indigo-600 underline">Call Shop: {job.shopPhone}</a>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs">📞</span>
+                        <a href={`tel:${job.shopPhone}`} className="text-xs font-black text-indigo-600 underline">Call: {job.shopPhone}</a>
+                      </div>
                    </div>
                    <div className="bg-gray-50 p-4 rounded-2xl border-l-4 border-indigo-600">
                       <p className="text-[8px] font-black text-gray-400 uppercase mb-2">Step 2: Drop to Customer</p>
                       <p className="text-xs font-black text-gray-800 mb-1">{job.customerName}</p>
                       <p className="text-[10px] font-bold text-gray-500 mb-2">{job.deliveryAddress}</p>
-                      <a href={`tel:${job.customerPhone}`} className="text-xs font-black text-indigo-600 underline">Call Customer: {job.customerPhone}</a>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs">📞</span>
+                        <a href={`tel:${job.customerPhone}`} className="text-xs font-black text-indigo-600 underline">Call: {job.customerPhone}</a>
+                      </div>
                    </div>
                 </div>
 
