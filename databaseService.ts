@@ -59,6 +59,15 @@ export const dbService = {
     } catch (e) { return []; }
   },
 
+  listenToAllUsers: (callback: (users: (UserProfile | ShopProfile)[]) => void) => {
+    try {
+      const firestore = getDb();
+      return onSnapshot(collection(firestore, "users"), (snap) => {
+        callback(snap.docs.map(doc => doc.data() as UserProfile | ShopProfile));
+      });
+    } catch (e) { return () => {}; }
+  },
+
   loadMarketData: async () => {
     try {
       const fs = getDb();

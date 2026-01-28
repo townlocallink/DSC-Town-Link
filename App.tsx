@@ -26,6 +26,7 @@ const App: React.FC = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [updates, setUpdates] = useState<DailyUpdate[]>([]);
+  const [allUsers, setAllUsers] = useState<(UserProfile | ShopProfile)[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -68,6 +69,7 @@ const App: React.FC = () => {
   useEffect(() => {
     let unsubscribeMarket = () => {};
     let unsubscribeUser = () => {};
+    let unsubscribeAllUsers = () => {};
 
     const initApp = async () => {
       const savedSession = localStorage.getItem(SESSION_KEY);
@@ -89,6 +91,12 @@ const App: React.FC = () => {
               localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
             }
           });
+
+          if (currentUser.role === 'admin') {
+            unsubscribeAllUsers = dbService.listenToAllUsers((users) => {
+              setAllUsers(users);
+            });
+          }
         } catch (e) {
           console.error("Session restore failed", e);
         }
@@ -170,6 +178,7 @@ const App: React.FC = () => {
     return () => {
       unsubscribeMarket();
       unsubscribeUser();
+      unsubscribeAllUsers();
     };
   }, [addNotification]);
 
@@ -181,20 +190,24 @@ const App: React.FC = () => {
     const savedNotifs = localStorage.getItem(getNotifStorageKey(u.id));
     setNotifications(savedNotifs ? JSON.parse(savedNotifs) : []);
     addNotification(`Market Link active for ${u.name}.`, 'system', true);
+    
+    if (u.role === 'admin') {
+      dbService.listenToAllUsers((users) => setAllUsers(users));
+    }
   };
 
   const handleLogout = () => {
     setUser(null);
     setNotifications([]);
+    setAllUsers([]);
     localStorage.removeItem(SESSION_KEY);
     initializedRef.current = false;
   };
 
   const handleAcceptOffer = async (order: Order) => {
-    // Injecting shop/customer phone numbers for delivery person
-    const allUsers = await dbService.loadUsers();
-    const shop = allUsers.find(u => u.id === order.shopId);
-    const customer = allUsers.find(u => u.id === order.customerId);
+    const allUsersList = await dbService.loadUsers();
+    const shop = allUsersList.find(u => u.id === order.shopId);
+    const customer = allUsersList.find(u => u.id === order.customerId);
     const req = requests.find(r => r.id === order.requestId);
 
     const enrichedOrder: Order = {
@@ -211,19 +224,15 @@ const App: React.FC = () => {
     setOrders(prev => [enrichedOrder, ...prev]);
     await dbService.saveItem(enrichedOrder.id, 'order', enrichedOrder);
 
-    // Reject competing offers
     const competingOffers = offers.filter(o => o.requestId === order.requestId && o.id !== order.offerId);
     for (const compOffer of competingOffers) {
       const rejectedOffer = { ...compOffer, status: 'rejected' as const };
-      setOffers(prev => prev.map(o => o.id === compOffer.id ? rejectedOffer : o));
       await dbService.saveItem(compOffer.id, 'offer', rejectedOffer);
     }
 
-    setOffers(prev => prev.map(o => o.id === order.offerId ? { ...o, status: 'accepted' as const } : o));
     const acceptedOffer = offers.find(o => o.id === order.offerId);
     if (acceptedOffer) await dbService.saveItem(acceptedOffer.id, 'offer', { ...acceptedOffer, status: 'accepted' as const });
 
-    setRequests(prev => prev.map(r => r.id === order.requestId ? { ...r, status: 'fulfilled' as const } : r));
     const targetRequest = requests.find(r => r.id === order.requestId);
     if (targetRequest) await dbService.saveItem(targetRequest.id, 'request', { ...targetRequest, status: 'fulfilled' as const });
     
@@ -233,9 +242,7 @@ const App: React.FC = () => {
 
   const handleDeliveryAccept = async (orderId: string) => {
     if (!user || user.role !== 'delivery_partner') return;
-    
-    // Check if order is still available (Race condition protection)
-    const allData = await dbService.loadMarketData(); // Need a quick fresh check
+    const allData = await dbService.loadMarketData();
     const currentOrder = allData.orders.find((o: Order) => o.id === orderId);
     
     if (!currentOrder || currentOrder.status !== 'pending_assignment') {
@@ -253,7 +260,6 @@ const App: React.FC = () => {
     };
 
     await dbService.saveItem(orderId, 'order', updatedOrder);
-    addNotification("Job accepted! Head to the shop now.", 'system');
   };
 
   const handleDeliveryStatus = async (orderId: string, status: Order['status']) => {
@@ -261,7 +267,6 @@ const App: React.FC = () => {
     if (targetOrder) {
       const updatedOrder = { ...targetOrder, status };
       await dbService.saveItem(orderId, 'order', updatedOrder);
-      addNotification(`Order status: ${status.replace(/_/g, ' ')}`, 'order');
     }
   };
 
@@ -292,7 +297,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 p-4 md:p-8">
       {showConfetti && <Confetti />}
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {!user ? (
           <Auth onLogin={handleLogin} />
         ) : (
@@ -341,7 +346,7 @@ const App: React.FC = () => {
             </nav>
 
             {user.role === 'admin' ? (
-              <AdminDashboard requests={requests} offers={offers} orders={orders} allUsers={[]} onImportData={(data) => dbService.saveUsers(data.users || [])} />
+              <AdminDashboard requests={requests} offers={offers} orders={orders} allUsers={allUsers} onImportData={(data) => dbService.saveUsers(data.users || [])} />
             ) : user.role === 'customer' ? (
               <CustomerDashboard
                 user={user as UserProfile}
@@ -349,9 +354,9 @@ const App: React.FC = () => {
                 offers={offers} 
                 orders={orders}
                 updates={updates}
-                onNewRequest={(req) => { setRequests(p => [req, ...p]); dbService.saveItem(req.id, 'request', req); }}
+                onNewRequest={(req) => { dbService.saveItem(req.id, 'request', req); }}
                 onAcceptOffer={handleAcceptOffer}
-                onUpdateUser={(u) => { setUser(u); dbService.updateUserProfile(u.id, u); }}
+                onUpdateUser={(u) => { dbService.updateUserProfile(u.id, u); }}
                 onSendMessage={(oid, msg) => {
                   const target = offers.find(o => o.id === oid);
                   if (target) {
@@ -359,9 +364,9 @@ const App: React.FC = () => {
                     dbService.saveItem(oid, 'offer', upd);
                   }
                 }}
-                onMarkReceived={() => {}} // No longer needed
+                onMarkReceived={() => {}}
                 onSubmitRating={(tid, r, oid) => {
-                   dbService.updateUserProfile(tid, { rating: r }); // Simple rating logic
+                   dbService.updateUserProfile(tid, { rating: r });
                    const ord = orders.find(o => o.id === oid);
                    if (ord) dbService.saveItem(oid, 'order', { ...ord, shopRated: true });
                 }}
@@ -373,9 +378,9 @@ const App: React.FC = () => {
                 totalGlobalRequests={requests.length}
                 offers={offers}
                 orders={orders}
-                onPostUpdate={(upd) => { setUpdates(p => [upd, ...p]); dbService.saveItem(upd.id, 'update', upd); }}
-                onSubmitOffer={(off) => { setOffers(p => [off, ...p]); dbService.saveItem(off.id, 'offer', off); }}
-                onUpdateOrder={() => {}} // Handled by delivery
+                onPostUpdate={(upd) => { dbService.saveItem(upd.id, 'update', upd); }}
+                onSubmitOffer={(off) => { dbService.saveItem(off.id, 'offer', off); }}
+                onUpdateOrder={() => {}}
                 onSendMessage={(oid, msg) => {
                   const target = offers.find(o => o.id === oid);
                   if (target) {
